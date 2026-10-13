@@ -1,2 +1,5 @@
 dist/
 node_modules/
+ios/www/
+ios/*.xcodeproj/
+ios/build/

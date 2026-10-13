@@ -1,0 +1,66 @@
+name: Сборка приложения для iPhone
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Скачать игры
+        run: VERSION="ios${{ github.run_number }}" ./scripts/build.sh
+
+      - name: Положить игры в приложение
+        run: rm -rf ios/www && cp -R dist ios/www
+
+      - name: Создать проект Xcode
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Собрать
+        run: |
+          cd ios
+          xcodebuild -project AndreosPlay.xcodeproj -scheme AndreosPlay -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} build > build.log 2>&1 \
+            || { grep -E "error:|warning: .*deprecated" build.log | head -60; tail -40 build.log; exit 1; }
+          test -d build/Build/Products/Release-iphoneos/AndreosPlay.app
+
+      - name: Упаковать .ipa
+        run: |
+          mkdir -p Payload
+          cp -R ios/build/Build/Products/Release-iphoneos/AndreosPlay.app Payload/
+          zip -qry AndreosPlay.ipa Payload
+          ls -lh AndreosPlay.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AndreosPlay-ipa
+          path: AndreosPlay.ipa
+
+      - name: Обновить релиз «latest»
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest AndreosPlay.ipa \
+            --title "Andreos Play для iPhone (сборка ${{ github.run_number }})" \
+            --notes "Скачай AndreosPlay.ipa и установи через Sideloadly со своим Apple ID (инструкция в README). Новые сборки ставятся поверх, прогресс сохраняется." \
+            --target "${{ github.sha }}"

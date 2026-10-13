@@ -4,7 +4,12 @@
 
 const VERSION = "__VERSION__";
 const SITE_URL = "https://aasolo.github.io/andreos-games-ios/";
-const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+// Внутри настоящего приложения (из .ipa) есть мост в Swift: window.AndreosNative
+const native = window.AndreosNative || null;
+const bridge = native && window.webkit?.messageHandlers?.app;
+const post = msg => { try { bridge.postMessage(msg); } catch {} };
+const RELEASE_PAGE = "https://github.com/AASolo/andreos-games-ios/releases/latest";
+const standalone = !!native || navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
 
 const games = [
   { id: "doroga-v-okean", title: "Дорога в океан", cover: "og.jpg", accent: "#35d0ba",
@@ -115,6 +120,7 @@ const hapticSwitch = document.getElementById("hapticSwitch");
 function haptic(p = 10) {
   if (!settings.haptics) return;
   try {
+    if (bridge) { post({ type: "haptic", style: Array.isArray(p) && p.length > 2 ? "success" : (Array.isArray(p) || p >= 12 ? "medium" : "light") }); return; }
     if (navigator.vibrate) { navigator.vibrate(p); return; }
     hapticSwitch.click();
     // Двойной «тик» для важных событий
@@ -211,6 +217,7 @@ document.addEventListener("visibilitychange", () => (document.hidden ? music.sto
 addEventListener("pagehide", () => music.stop(true));
 
 function openExternal(u) {
+  if (bridge) { post({ type: "open", url: u }); return; }
   try { window.open(u, "_blank", "noopener") || (location.href = u); } catch { location.href = u; }
 }
 
@@ -474,7 +481,8 @@ function bindSettings() {
   document.getElementById("shareBtn").onclick = () => {
     haptic();
     const text = "Залетай в Andreos Play: все игры Andreos в одном приложении 🎮";
-    if (navigator.share) navigator.share({ title: "Andreos Play", text, url: SITE_URL }).catch(() => {});
+    if (bridge) post({ type: "share", text, url: SITE_URL });
+    else if (navigator.share) navigator.share({ title: "Andreos Play", text, url: SITE_URL }).catch(() => {});
     else navigator.clipboard?.writeText(`${text}\n${SITE_URL}`)
       .then(() => toast("📋", "Ссылка скопирована", "Отправь её другу"), () => {});
   };
@@ -493,7 +501,8 @@ function bindSettings() {
     renderAll();
     toast("🧹", "Статистика сброшена", "Начинаем с чистого листа");
   };
-  document.getElementById("versionLbl").textContent = `Версия ${VERSION.replace(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/, "$3.$2.$1 $4:$5")}`;
+  if (native) document.getElementById("installBtn").hidden = true;
+  document.getElementById("versionLbl").textContent = native ? `Версия ${native.version} (сборка ${native.build})` : `Версия ${VERSION.replace(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/, "$3.$2.$1 $4:$5")}`;
 }
 
 /* ================= Обновления и офлайн ================= */
@@ -502,6 +511,7 @@ function bindSettings() {
 // а мы показываем баннер «Обновить».
 let reg = null;
 async function setupSW() {
+  if (native) { offlineState({ done: 1, total: 1 }); return; } // в приложении всё уже внутри
   if (!("serviceWorker" in navigator)) { offlineState({ error: true }); return; }
   try {
     reg = await navigator.serviceWorker.register("sw.js");
@@ -522,7 +532,28 @@ navigator.serviceWorker?.addEventListener("controllerchange", () => {
   if (reloading) return; reloading = true; location.reload();
 });
 
+// Приложение из .ipa: сравниваем номер сборки с последним релизом на GitHub
+async function checkNativeUpdate(manual) {
+  if (!manual && Date.now() - store.get("ap:updChecked", 0) < 6 * 3600e3) return;
+  store.set("ap:updChecked", Date.now());
+  try {
+    const r = await fetch("https://api.github.com/repos/AASolo/andreos-games-ios/releases/latest", { cache: "no-store" });
+    if (!r.ok) throw 0;
+    const m = /сборка\s+(\d+)/i.exec((await r.json()).name || "");
+    const latest = m ? +m[1] : 0;
+    if (latest > native.build) {
+      const b = document.getElementById("updateBanner");
+      b.hidden = false;
+      b.innerHTML = `<span style="font-size:26px">🚀</span><div class="txt"><b>Вышло обновление</b><small>Сборка ${latest} уже готова</small></div><button type="button">Скачать</button>`;
+      b.querySelector("button").onclick = () => { haptic(); openExternal(RELEASE_PAGE); };
+    } else if (manual) toast("✅", "У тебя последняя версия", `Сборка ${native.build}`);
+  } catch {
+    if (manual) toast("📡", "Не получилось проверить", "Нужен интернет");
+  }
+}
+
 async function checkUpdate(manual) {
+  if (native) return checkNativeUpdate(manual);
   if (!reg) { if (manual) toast("📡", "Не получилось проверить", "Открой приложение с интернетом"); return; }
   if (!manual) {
     const last = store.get("ap:updChecked", 0);
