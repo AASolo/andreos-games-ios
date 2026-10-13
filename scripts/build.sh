@@ -28,6 +28,9 @@ for g in "${GAMES[@]}"; do
   sed -i -E 's#<link rel="manifest"[^>]*>##g' "$f"
   sed -i "s#navigator.serviceWorker.register('sw.js')#Promise.resolve()#g" "$f"
   rm -f "$DIST/games/$g/sw.js"
+  # Мост: уведомления о рекордах и уровнях в ленту 🔔 приложения (andreos-bridge.js)
+  sed -i 's#</head>#<script src="../../andreos-bridge.js" defer></script></head>#' "$f"
+  grep -q 'andreos-bridge.js' "$f" || { echo "Не нашёл </head> в $g" >&2; exit 1; }
   sed -i 's#</body>#<script src="../../game-shell.js"></script></body>#' "$f"
   grep -q 'game-shell.js' "$f" || { echo "Не нашёл </body> в $g" >&2; exit 1; }
 done

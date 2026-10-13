@@ -118,6 +118,11 @@ final class WebViewController: UIViewController, WKNavigationDelegate, WKUIDeleg
             }
         case "open":
             if let s = body["url"] as? String, let url = URL(string: s) { openExternal(url) }
+        case "reminder":
+            Reminders.update(on: body["on"] as? Bool ?? false,
+                             ask: body["ask"] as? Bool ?? false,
+                             last: body["last"] as? String ?? "",
+                             streak: (body["streak"] as? NSNumber)?.intValue ?? 0)
         case "share":
             var items: [Any] = []
             if let text = body["text"] as? String { items.append(text) }

@@ -35,7 +35,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   del(k) { try { localStorage.removeItem(k); } catch {} },
 };
-const settings = Object.assign({ haptics: true, sounds: true, music: true, motion: true }, store.get("ap:settings", {}));
+const settings = Object.assign({ haptics: true, sounds: true, music: true, motion: true, reminders: true }, store.get("ap:settings", {}));
 
 // Статистика: { time: {id: мс}, plays: {id: n}, days: ["2026-10-13", ...], night, early }
 function loadStats() {
@@ -88,6 +88,7 @@ function plural(n, one, few, many) {
 /* ================= Достижения ================= */
 
 const MIN = 60000, HOUR = 3600e3;
+const gp = () => store.get("ap:gp", {}); // рекорды внутри игр, их пишет andreos-bridge.js
 const playsOf = id => stats.plays[id] || 0;
 const minsOf = id => Math.floor((stats.time[id] || 0) / MIN);
 const maxDayPlays = () => Math.max(0, ...Object.values(stats.dayPlays));
@@ -95,7 +96,7 @@ const maxDayGames = () => Math.max(0, ...Object.values(stats.dayGames).map(l => 
 
 // tier: 1 бронза, 2 серебро, 3 золото. secret: название скрыто, пока не получено.
 const awardGroups = [
-  ["start", "Первые шаги"], ["games", "По играм"], ["plays", "Запуски"], ["time", "Время в играх"],
+  ["start", "Первые шаги"], ["ingame", "Успехи в играх"], ["games", "По играм"], ["plays", "Запуски"], ["time", "Время в играх"],
   ["streak", "Серии дней"], ["moments", "Особые моменты"], ["secret", "Секретные"],
 ];
 const awards = [
@@ -104,6 +105,15 @@ const awards = [
   { g: "start", id: "love", icon: "❤️", title: "Любимчик", text: "Добавь игру в избранное", goal: 1, tier: 1, val: () => favs.size },
   { g: "start", id: "loveall", icon: "💞", title: "Люблю их все", text: "Добавь в избранное все игры", goal: games.length, tier: 2, val: () => favs.size },
   { g: "start", id: "tabs", icon: "🧭", title: "Любопытный", text: "Загляни во все вкладки приложения", goal: 3, tier: 1, val: () => stats.tabs.length },
+
+  { g: "ingame", id: "release1", icon: "🐟", title: "Первый выпуск", text: "Выпусти рыбку в океан в «Дороге в океан»", goal: 1, tier: 2, val: () => gp().fishReleased || 0 },
+  { g: "ingame", id: "release3", icon: "🐋", title: "Хранитель океана", text: "Выпусти в океан 3 рыбки", goal: 3, tier: 3, val: () => gp().fishReleased || 0 },
+  { g: "ingame", id: "tower30", icon: "🏙️", title: "Выше облаков", text: "Построй в «Бутербашне» башню из 30 этажей", goal: 30, tier: 2, val: () => gp().buterBest || 0 },
+  { g: "ingame", id: "coins500", icon: "🪙", title: "Копилка", text: "Накопи 500 монет в «Бутербашне»", goal: 500, tier: 2, val: () => gp().buterCoins || 0 },
+  { g: "ingame", id: "chef5", icon: "🍲", title: "Шеф-повар", text: "Дойди до 5 уровня в «Кимчи-кафе»", goal: 5, tier: 2, val: () => gp().kimchiLevel || 0 },
+  { g: "ingame", id: "cafe300", icon: "💰", title: "Касса полна", text: "Заработай 300 монет в «Кимчи-кафе»", goal: 300, tier: 1, val: () => gp().kimchiCoins || 0 },
+  { g: "ingame", id: "hack10", icon: "🔓", title: "Взломщик", text: "Пройди 10 миссий в HackQuest", goal: 10, tier: 2, val: () => gp().hackDone || 0 },
+  { g: "ingame", id: "obelisk", icon: "🗿", title: "OBELISK", text: "Пройди все 30 миссий в HackQuest", goal: 30, tier: 3, val: () => gp().hackDone || 0 },
 
   { g: "games", id: "fish5", icon: "🐠", title: "Друг рыбки", text: "Запусти «Дорогу в океан» 5 раз", goal: 5, tier: 1, val: () => playsOf("doroga-v-okean") },
   { g: "games", id: "fish30", icon: "🌊", title: "Океанолог", text: "Проведи в «Дороге в океан» 30 минут", goal: 30, tier: 2, val: () => minsOf("doroga-v-okean") },
@@ -147,7 +157,7 @@ const awards = [
   { g: "secret", id: "quick", icon: "📲", title: "Свой человек", text: "Открой Andreos Play с экрана «Домой»", goal: 1, tier: 2, secret: true, val: () => +stats.shortcut },
   { g: "secret", id: "comeback", icon: "🦋", title: "Возвращение", text: "Вернись поиграть после недели перерыва", goal: 1, tier: 2, secret: true, val: () => +stats.comeback },
   { g: "secret", id: "newyear", icon: "🎄", title: "Новогоднее чудо", text: "Сыграй 31 декабря или 1 января", goal: 1, tier: 3, secret: true, val: () => +stats.newyear },
-  { g: "secret", id: "collector", icon: "🌟", title: "Коллекционер наград", text: "Получи 30 достижений", goal: 30, tier: 3, secret: true, val: () => awards.filter(a => a.id !== "collector" && isGot(a)).length },
+  { g: "secret", id: "collector", icon: "🌟", title: "Коллекционер наград", text: "Получи 40 достижений", goal: 40, tier: 3, secret: true, val: () => awards.filter(a => a.id !== "collector" && isGot(a)).length },
 ];
 
 // Однажды полученное достижение остаётся навсегда (даже если убрать игру из избранного)
@@ -166,6 +176,10 @@ function checkAwards() {
   if (!fresh.length) return;
   store.set("ap:awards", [...gotSet]);
   store.set("ap:awardsNew", true);
+  const inbox = store.get("ap:inbox", []);
+  fresh.forEach(a => inbox.unshift({ game: null, icon: a.icon, title: a.secret ? "Секретное достижение!" : "Новое достижение!", text: a.title, t: Date.now(), read: false }));
+  store.set("ap:inbox", inbox.slice(0, 100));
+  renderBell(true);
   document.getElementById("awardsDot").hidden = false;
   const shown = fresh.slice(0, 3);
   shown.forEach((a, i) => setTimeout(() => {
@@ -298,6 +312,7 @@ function closeSession() {
   stats.time[s.id] = (stats.time[s.id] || 0) + ms;
   stats.longest = Math.max(stats.longest, ms);
   store.set("ap:stats", stats);
+  syncReminders(false);
 }
 function openSession(g) {
   const now = new Date();
@@ -330,6 +345,83 @@ function mark(flag) {
   stats[flag] = true;
   store.set("ap:stats", stats);
   checkAwards();
+}
+
+/* ================= Уведомления ================= */
+
+function ago(t) {
+  const m = Math.round((Date.now() - t) / MIN);
+  if (m < 1) return "сейчас";
+  if (m < 60) return `${m} мин`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} ч`;
+  const d = Math.round(h / 24);
+  return `${d} ${plural(d, "день", "дня", "дней")}`;
+}
+function renderBell(ring) {
+  const n = store.get("ap:inbox", []).filter(x => !x.read).length;
+  const c = document.getElementById("bellCount");
+  c.hidden = !n;
+  c.textContent = n > 9 ? "9+" : n;
+  const b = document.getElementById("bellBtn");
+  if (ring && n) { b.classList.remove("ring"); void b.offsetWidth; b.classList.add("ring"); }
+}
+function openInbox() {
+  haptic(); sound("tap");
+  const inbox = store.get("ap:inbox", []);
+  const list = document.getElementById("inboxList");
+  list.innerHTML = "";
+  if (!inbox.length) {
+    list.innerHTML = `<div class="inbox-empty"><div>🔔</div>Здесь появятся рекорды, новые уровни и достижения из твоих игр.</div>`;
+  }
+  inbox.forEach((x, i) => {
+    const g = x.game && byId[x.game];
+    const el = document.createElement("div");
+    el.className = "note" + (x.read ? "" : " unread");
+    el.style.setProperty("--i", Math.min(i, 12));
+    el.innerHTML = `<div class="ic"></div><div class="tx"><b></b><small></small></div><time>${ago(x.t)}</time>`;
+    el.querySelector(".ic").textContent = x.icon;
+    if (g) { const im = document.createElement("img"); im.src = img(g); im.alt = ""; el.querySelector(".ic").appendChild(im); }
+    el.querySelector("b").textContent = x.title;
+    el.querySelector("small").textContent = g ? `${g.title} · ${x.text}` : x.text;
+    if (g) { el.style.cursor = "pointer"; el.onclick = () => { closeInbox(); launch(g, null); }; }
+    list.appendChild(el);
+  });
+  document.getElementById("inboxBg").hidden = false;
+  const sh = document.getElementById("inbox");
+  sh.classList.remove("closing");
+  sh.hidden = false;
+  // всё прочитано
+  store.set("ap:inbox", inbox.map(x => ({ ...x, read: true })));
+  renderBell();
+}
+function closeInbox() {
+  const sh = document.getElementById("inbox");
+  if (sh.hidden) return;
+  sh.classList.add("closing");
+  document.getElementById("inboxBg").hidden = true;
+  setTimeout(() => { sh.hidden = true; sh.classList.remove("closing"); }, 300);
+}
+document.getElementById("bellBtn").onclick = openInbox;
+document.getElementById("inboxBg").onclick = closeInbox;
+document.getElementById("inboxClear").onclick = () => { store.set("ap:inbox", []); haptic(); openInbox(); };
+// Свайп вниз закрывает ленту
+(() => {
+  const sh = document.getElementById("inbox");
+  let y0 = null;
+  sh.addEventListener("touchstart", e => { if (document.getElementById("inboxList").scrollTop <= 0) y0 = e.touches[0].clientY; }, { passive: true });
+  sh.addEventListener("touchmove", e => { if (y0 != null && e.touches[0].clientY - y0 > 70) { y0 = null; closeInbox(); } }, { passive: true });
+  sh.addEventListener("touchend", () => { y0 = null; });
+})();
+
+
+/* ================= Напоминания на телефон ================= */
+
+// Только в приложении из .ipa: передаём, когда играли последний раз, и iPhone вечером напомнит про серию
+function syncReminders(ask) {
+  if (!bridge) return;
+  const last = [...stats.days].sort().pop() || "";
+  post({ type: "reminder", on: !!settings.reminders, ask: !!ask, last, streak: streak() });
 }
 
 /* ================= Шапка ================= */
@@ -583,6 +675,7 @@ function bindSettings() {
       settings[el.dataset.setting] = el.checked;
       store.set("ap:settings", settings);
       applySettings();
+      if (el.dataset.setting === "reminders") syncReminders(el.checked);
       if (el.dataset.setting === "music") settings.music ? music.start() : music.stop();
       haptic(); sound("tap");
     };
@@ -613,6 +706,7 @@ function bindSettings() {
     toast("🧹", "Статистика сброшена", "Начинаем с чистого листа");
   };
   if (native) document.getElementById("installBtn").hidden = true;
+  else document.getElementById("remindersRow").hidden = true; // напоминания умеет только приложение из .ipa
   document.getElementById("versionLbl").textContent = native ? `Версия ${native.version} (сборка ${native.build})` : `Версия ${VERSION.replace(/^(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)$/, "$3.$2.$1 $4:$5")}`;
 }
 
@@ -825,6 +919,7 @@ function renderAll() {
   renderGrid();
   if (tab === "awards") renderAwards();
   document.getElementById("awardsDot").hidden = !store.get("ap:awardsNew", false);
+  renderBell();
 }
 
 function hideSplash() {
@@ -849,6 +944,9 @@ function boot() {
   music.start();
   setupSW().then(() => setTimeout(() => checkUpdate(false), 1500));
   maybeInstall();
+  renderBell(true);
+  // Разрешение на уведомления спрашиваем один раз, после первой игры
+  setTimeout(() => syncReminders(totalPlays() > 0 && !store.get("ap:askedNotif", false) && (store.set("ap:askedNotif", true), true)), 2500);
 
   // Запуск с ярлыка на иконке приложения: ?play=<id>
   const want = new URLSearchParams(location.search).get("play");
@@ -867,7 +965,7 @@ addEventListener("pageshow", e => {
   document.querySelectorAll(".zoom").forEach(z => z.remove());
   document.body.classList.remove("leaving");
   stats = loadStats(); recent = store.get("ap:recent", []);
-  closeSession(); renderAll(); checkAwards();
+  closeSession(); renderAll(); checkAwards(); renderBell(true);
 });
 
 boot();
