@@ -65,7 +65,8 @@ header { display: flex; align-items: center; gap: 14px; margin-bottom: clamp(18p
   box-shadow: 0 8px 24px rgba(139, 92, 255, .45);
   animation: logoIn .9s var(--ease-spring) both;
 }
-.logo svg { width: 28px; height: 28px; }
+.logo { overflow: hidden; box-shadow: 0 8px 24px rgba(139, 92, 255, .45); }
+.logo img { width: 100%; height: 100%; display: block; }
 @keyframes logoIn { from { transform: scale(0) rotate(-30deg); } to { transform: none; } }
 .hello { min-width: 0; flex: 1; }
 .hello small { display: block; color: var(--muted); font-size: 14px; animation: rise .7s var(--ease-out) .1s both; }
