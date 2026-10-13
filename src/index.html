@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0914">
+<meta name="description" content="Все игры Andreos в одном приложении для iPhone">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Andreos Play">
+<meta name="format-detection" content="telephone=no">
+<title>Andreos Play</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="splash-logo"><img src="icons/icon-192.png" alt=""></div>
+  <div class="splash-name"><span class="grad">Andreos</span> Play</div>
+</div>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="app">
+  <header>
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path fill="#fff" d="M7 6h10a6 6 0 0 1 6 6v2.5a4.5 4.5 0 0 1-8.1 2.6L13.8 15h-3.6l-1.1 2.1A4.5 4.5 0 0 1 1 14.5V12a6 6 0 0 1 6-6z"/><path fill="#8b5cff" d="M6 9.5h1.5V11H9v1.5H7.5V14H6v-1.5H4.5V11H6z"/><circle cx="16.5" cy="10.5" r="1.2" fill="#ffc42e"/><circle cx="19" cy="13" r="1.2" fill="#ff4f9a"/></svg>
+    </div>
+    <div class="hello">
+      <small id="greet">Привет!</small>
+      <h1><span class="grad">Andreos</span> Play</h1>
+    </div>
+    <button class="streak" id="streakChip" type="button" aria-label="Серия дней"></button>
+  </header>
+
+  <div id="updateBanner" class="update" hidden></div>
+
+  <!-- ====== Игры ====== -->
+  <section class="tab" id="tab-games" data-tab="games">
+    <button class="hero" id="hero" type="button"></button>
+
+    <div class="chips" id="chips" role="tablist"></div>
+
+    <div class="section-title"><h3 id="listTitle">Все игры</h3><span id="count"></span></div>
+    <main class="grid" id="grid"></main>
+    <div class="empty" id="empty" hidden>
+      <div class="empty-heart">♡</div>
+      <p>Нажми на сердечко у игры, и она появится здесь.</p>
+    </div>
+  </section>
+
+  <!-- ====== Достижения ====== -->
+  <section class="tab" id="tab-awards" data-tab="awards" hidden>
+    <div class="profile">
+      <div class="ring" id="ring">
+        <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="ring-bg"/><circle cx="60" cy="60" r="52" class="ring-fg" id="ringFg"/></svg>
+        <div class="ring-text"><b id="ringNum">0</b><span>из 0</span></div>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div class="section-title"><h3>Достижения</h3><span id="awardsCount"></span></div>
+    <div class="awards" id="awards"></div>
+    <div class="section-title"><h3>Время в играх</h3></div>
+    <div class="bars" id="bars"></div>
+  </section>
+
+  <!-- ====== Настройки ====== -->
+  <section class="tab" id="tab-settings" data-tab="settings" hidden>
+    <div class="section-title first"><h3>Настройки</h3></div>
+    <div class="list">
+      <label class="row"><span class="ico">📳</span><span class="lbl">Вибрация<small>Лёгкий отклик при нажатиях</small></span><input type="checkbox" class="switch" data-setting="haptics"></label>
+      <label class="row"><span class="ico">🔊</span><span class="lbl">Звуки меню<small>Тихие щелчки в меню</small></span><input type="checkbox" class="switch" data-setting="sounds"></label>
+      <label class="row"><span class="ico">✨</span><span class="lbl">Анимации<small>Живой фон и эффекты</small></span><input type="checkbox" class="switch" data-setting="motion"></label>
+    </div>
+    <div class="list">
+      <button class="row" type="button" id="installBtn"><span class="ico">📲</span><span class="lbl">На экран «Домой»<small id="installLbl">Иконка как у обычного приложения</small></span><span class="chev">›</span></button>
+      <div class="row"><span class="ico">✈️</span><span class="lbl">Без интернета<small id="offlineLbl">Проверяем…</small></span><span class="offline-ring" id="offlineRing"></span></div>
+    </div>
+    <div class="list">
+      <button class="row" type="button" id="shareBtn"><span class="ico">💌</span><span class="lbl">Поделиться с другом<small>Отправить ссылку на приложение</small></span><span class="chev">›</span></button>
+      <button class="row" type="button" id="updateBtn"><span class="ico">🚀</span><span class="lbl">Проверить обновления<small id="versionLbl">Версия</small></span><span class="chev">›</span></button>
+      <button class="row" type="button" data-open="https://www.instagram.com/misterandreos/"><span class="ico">📸</span><span class="lbl">Andreos в Instagram<small>Новые игры и закулисье</small></span><span class="chev">›</span></button>
+      <button class="row" type="button" data-open="https://aasolo.github.io/misterandreos/"><span class="ico">🌐</span><span class="lbl">Сайт Andreos<small>Игры, приложения и сайты</small></span><span class="chev">›</span></button>
+    </div>
+    <div class="list">
+      <button class="row danger" type="button" id="resetBtn"><span class="ico">🗑️</span><span class="lbl">Сбросить статистику<small>Время, серии и достижения</small></span></button>
+    </div>
+    <p class="made">Сделано Andreos с помощью ИИ ♥</p>
+  </section>
+</div>
+
+<nav class="tabbar" id="tabbar">
+  <button type="button" data-go="games" class="on">
+    <svg viewBox="0 0 24 24"><path d="M7 6h10a6 6 0 0 1 6 6v2.5a4.5 4.5 0 0 1-8.1 2.6L13.8 15h-3.6l-1.1 2.1A4.5 4.5 0 0 1 1 14.5V12a6 6 0 0 1 6-6z"/></svg>
+    <span>Игры</span>
+  </button>
+  <button type="button" data-go="awards">
+    <svg viewBox="0 0 24 24"><path d="M7 3h10v2h3v3a5 5 0 0 1-4.6 5A5 5 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1A5 5 0 0 1 8.6 13 5 5 0 0 1 4 8V5h3V3zm0 4H6v1a3 3 0 0 0 1.4 2.5A6 6 0 0 1 7 8V7zm10 0v1c0 .9-.1 1.7-.4 2.5A3 3 0 0 0 18 8V7h-1z"/></svg>
+    <span>Награды</span><i class="dot" id="awardsDot" hidden></i>
+  </button>
+  <button type="button" data-go="settings">
+    <svg viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.4 4.6.1-1.1-.1-1.1 2-1.6-2-3.4-2.4 1a8 8 0 0 0-1.9-1.1L15.7 3h-3.9l-.4 2.7a8 8 0 0 0-1.9 1.1l-2.4-1-2 3.4 2 1.6-.1 1.1.1 1.1-2 1.6 2 3.4 2.4-1c.6.5 1.2.8 1.9 1.1l.4 2.7h3.9l.4-2.7c.7-.3 1.3-.6 1.9-1.1l2.4 1 2-3.4-2-1.6z" transform="translate(-1.5 0)"/></svg>
+    <span>Ещё</span>
+  </button>
+  <i class="tab-glow" id="tabGlow"></i>
+</nav>
+
+<div class="sheet-back" id="sheetBack" hidden></div>
+<div class="sheet" id="installSheet" hidden role="dialog" aria-labelledby="sheetTitle">
+  <div class="sheet-grab"></div>
+  <img class="sheet-icon" src="icons/icon-192.png" alt="">
+  <h3 id="sheetTitle">Установи Andreos Play</h3>
+  <p>Добавь приложение на экран «Домой»: оно откроется на весь экран и будет работать без интернета.</p>
+  <ol class="steps">
+    <li><span class="n">1</span><span>Нажми <b>«Поделиться»</b> <svg viewBox="0 0 24 24" class="share-ico"><path d="M12 2.5 7.8 6.7l1.4 1.4L11 6.3V15h2V6.3l1.8 1.8 1.4-1.4zM5 10v10.5A1.5 1.5 0 0 0 6.5 22h11a1.5 1.5 0 0 0 1.5-1.5V10h-3v2h1v8H7v-8h1v-2z"/></svg> внизу Safari (или в меню <b>⋯</b>)</span></li>
+    <li><span class="n">2</span><span>Выбери <b>«На экран „Домой“»</b> <span class="plus">＋</span></span></li>
+    <li><span class="n">3</span><span>Нажми <b>«Добавить»</b>, и иконка появится рядом с другими приложениями</span></li>
+  </ol>
+  <button class="sheet-ok" type="button" id="sheetOk">Понятно</button>
+  <div class="sheet-arrow" aria-hidden="true">↓</div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<label id="hapticSwitch" aria-hidden="true" style="display:none"><input type="checkbox" switch></label>
+<script src="app.js"></script>
+</body>
+</html>
