@@ -3,7 +3,7 @@
 /* ================= Данные ================= */
 
 const VERSION = "__VERSION__";
-const SITE_URL = "https://aasolo.github.io/andreos-games-iphione/";
+const SITE_URL = "https://aasolo.github.io/andreos-games-ios/";
 const standalone = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
 
 const games = [
@@ -30,7 +30,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   del(k) { try { localStorage.removeItem(k); } catch {} },
 };
-const settings = Object.assign({ haptics: true, sounds: true, motion: true }, store.get("ap:settings", {}));
+const settings = Object.assign({ haptics: true, sounds: true, music: true, motion: true }, store.get("ap:settings", {}));
 
 // Статистика: { time: {id: мс}, plays: {id: n}, days: ["2026-10-13", ...], night, early }
 function loadStats() {
@@ -140,6 +140,76 @@ function sound(kind = "tap") {
     }
   } catch {}
 }
+/* ================= Фоновая музыка ================= */
+
+// Лёгкий спокойный эмбиент, который синтезируется прямо в телефоне (работает и без интернета):
+// мягкие аккорды медленно сменяют друг друга, иногда звенят тихие колокольчики.
+const music = (() => {
+  const CHORDS = [[48, 55, 64, 71], [45, 52, 60, 67], [41, 48, 57, 64], [43, 50, 59, 66]]; // Cmaj7 Am7 Fmaj7 G
+  const BELLS = [72, 74, 76, 79, 81, 84];
+  const VOL = .055, BAR = 9;
+  const hz = n => 440 * 2 ** ((n - 69) / 12);
+  let out = null, timer = 0, step = 0, playing = false;
+
+  function graph() {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    out = actx.createGain(); out.gain.value = 0;
+    const lp = actx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400; lp.Q.value = .3;
+    // Простое «эхо зала»
+    const dl = actx.createDelay(1), fb = actx.createGain(), wet = actx.createGain();
+    dl.delayTime.value = .38; fb.gain.value = .42; wet.gain.value = .35;
+    out.connect(lp); lp.connect(actx.destination);
+    lp.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(actx.destination);
+  }
+  function pad(n, t, dur) {
+    for (const [type, det, g] of [["sine", 0, .5], ["triangle", 7, .18], ["sine", -6, .3]]) {
+      const o = actx.createOscillator(), a = actx.createGain();
+      o.type = type; o.frequency.value = hz(n); o.detune.value = det;
+      a.gain.setValueAtTime(0, t);
+      a.gain.linearRampToValueAtTime(g / 4, t + dur * .35);
+      a.gain.linearRampToValueAtTime(0, t + dur);
+      o.connect(a).connect(out); o.start(t); o.stop(t + dur + .1);
+    }
+  }
+  function bell(n, t) {
+    const o = actx.createOscillator(), a = actx.createGain();
+    o.type = "sine"; o.frequency.value = hz(n);
+    a.gain.setValueAtTime(0, t);
+    a.gain.linearRampToValueAtTime(.11, t + .02);
+    a.gain.exponentialRampToValueAtTime(.0001, t + 3.5);
+    o.connect(a).connect(out); o.start(t); o.stop(t + 3.6);
+  }
+  function tick() {
+    const t = actx.currentTime + .05;
+    CHORDS[step % CHORDS.length].forEach(n => pad(n, t, BAR * 1.5));
+    for (let i = 0; i < 3; i++) if (Math.random() < .55) bell(BELLS[Math.floor(Math.random() * BELLS.length)], t + 1 + Math.random() * (BAR - 2));
+    step++;
+  }
+  return {
+    start() {
+      if (playing) { actx.state !== "running" && actx.resume?.(); return; }
+      if (!settings.music || document.hidden) return;
+      try {
+        if (!out) graph();
+        actx.resume?.();
+        playing = true;
+        out.gain.cancelScheduledValues(actx.currentTime);
+        out.gain.setTargetAtTime(VOL, actx.currentTime, 1.2);
+        tick(); timer = setInterval(tick, BAR * 1000);
+      } catch {}
+    },
+    stop(fast) {
+      if (!playing) return;
+      playing = false; clearInterval(timer);
+      try { out.gain.cancelScheduledValues(actx.currentTime); out.gain.setTargetAtTime(0, actx.currentTime, fast ? .08 : .5); } catch {}
+    },
+  };
+})();
+// iPhone разрешает звук только после первого касания
+["pointerdown", "keydown"].forEach(ev => addEventListener(ev, () => music.start(), { capture: true, passive: true }));
+document.addEventListener("visibilitychange", () => (document.hidden ? music.stop(true) : music.start()));
+addEventListener("pagehide", () => music.stop(true));
+
 function openExternal(u) {
   try { window.open(u, "_blank", "noopener") || (location.href = u); } catch { location.href = u; }
 }
@@ -312,6 +382,7 @@ let busy = false;
 function launch(g, coverImg) {
   if (busy) return; busy = true;
   haptic(12); sound("tap");
+  music.stop();
   openSession(g);
 
   const reduce = !settings.motion || matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -395,6 +466,7 @@ function bindSettings() {
       settings[el.dataset.setting] = el.checked;
       store.set("ap:settings", settings);
       applySettings();
+      if (el.dataset.setting === "music") settings.music ? music.start() : music.stop();
       haptic(); sound("tap");
     };
   });
@@ -609,6 +681,7 @@ function boot() {
   go("games", true);
   requestAnimationFrame(moveGlow);
   checkAwards();
+  music.start();
   setupSW().then(() => setTimeout(() => checkUpdate(false), 1500));
   maybeInstall();
 
@@ -625,6 +698,7 @@ function boot() {
 addEventListener("pageshow", e => {
   if (!e.persisted) return;
   busy = false;
+  music.start();
   document.querySelectorAll(".zoom").forEach(z => z.remove());
   document.body.classList.remove("leaving");
   stats = loadStats(); recent = store.get("ap:recent", []);
