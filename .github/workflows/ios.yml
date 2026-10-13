@@ -22,6 +22,11 @@ jobs:
         with:
           node-version: 20
 
+      - name: Инструменты (GNU sed для build.sh, XcodeGen)
+        run: |
+          brew install gnu-sed xcodegen
+          echo "$(brew --prefix gnu-sed)/libexec/gnubin" >> "$GITHUB_PATH"
+
       - name: Скачать игры
         run: VERSION="ios${{ github.run_number }}" ./scripts/build.sh
 
@@ -29,9 +34,7 @@ jobs:
         run: rm -rf ios/www && cp -R dist ios/www
 
       - name: Создать проект Xcode
-        run: |
-          brew install xcodegen
-          cd ios && xcodegen generate
+        run: cd ios && xcodegen generate
 
       - name: Собрать
         run: |
