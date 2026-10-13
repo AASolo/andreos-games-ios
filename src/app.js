@@ -207,88 +207,138 @@ function haptic(p = 10) {
   } catch {}
 }
 let actx;
+// Звуки меню: мягкие «деревянные» щелчки (как маримба), не похожие на игровые писки
 function sound(kind = "tap") {
   if (!settings.sounds) return;
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    const notes = { tap: [[880, .04]], fav: [[660, .05], [990, .07]], win: [[523, .09], [659, .09], [784, .09], [1047, .18]], tab: [[740, .03]] }[kind];
+    const notes = { tap: [[392, .09]], tab: [[523, .07]], fav: [[523, .1], [784, .14]], win: [[392, .12], [523, .12], [659, .12], [784, .3]] }[kind];
     let t = actx.currentTime;
-    for (const [f, d] of notes) {
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.type = "sine"; o.frequency.value = f;
-      g.gain.setValueAtTime(.0001, t);
-      g.gain.exponentialRampToValueAtTime(.08, t + .01);
-      g.gain.exponentialRampToValueAtTime(.0001, t + d);
-      o.connect(g).connect(actx.destination);
-      o.start(t); o.stop(t + d + .02);
-      t += d * .8;
-    }
+    for (const [f, d] of notes) { mallet(actx, actx.destination, f, t, d, .11); t += d * .75; }
   } catch {}
 }
+// Удар маримбы: основной тон + обертон ×4, быстрое затухание и лёгкий «стук» в начале
+function mallet(ctx, out, f, t, d, vol) {
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + .004);
+  g.gain.exponentialRampToValueAtTime(.0001, t + d + .25);
+  g.connect(out);
+  [[1, 1], [3.98, .18], [9.9, .05]].forEach(([r, v]) => {
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.type = "sine"; o.frequency.value = f * r;
+    og.gain.setValueAtTime(v, t); og.gain.exponentialRampToValueAtTime(.0001, t + (r > 1 ? .08 : d + .25));
+    o.connect(og).connect(g); o.start(t); o.stop(t + d + .3);
+  });
+}
+
 /* ================= Фоновая музыка ================= */
 
-// Лёгкий спокойный эмбиент, который синтезируется прямо в телефоне (работает и без интернета):
-// мягкие аккорды медленно сменяют друг друга, иногда звенят тихие колокольчики.
+// Спокойный lo-fi, который генерируется прямо в приложении: электропиано с джазовыми
+// аккордами, мягкий бас и тихий треск винила. Специально не похоже на звуки игр.
+// Файлов нет, работает офлайн.
 const music = (() => {
-  const CHORDS = [[48, 55, 64, 71], [45, 52, 60, 67], [41, 48, 57, 64], [43, 50, 59, 66]]; // Cmaj7 Am7 Fmaj7 G
-  const BELLS = [72, 74, 76, 79, 81, 84];
-  const VOL = .055, BAR = 9;
-  const hz = n => 440 * 2 ** ((n - 69) / 12);
-  let out = null, timer = 0, step = 0, playing = false;
+  let ctx, master, out, crackle, timer, step = 0, on = false;
+  // Dm9 → G13 → Cmaj9 → Am9 (бас отдельно)
+  const CHORDS = [
+    { bass: 38, keys: [53, 57, 60, 64] },
+    { bass: 43, keys: [53, 59, 64, 69] },
+    { bass: 36, keys: [52, 55, 59, 62] },
+    { bass: 45, keys: [55, 60, 64, 71] },
+  ];
+  const BPM = 70, BEAT = 60 / BPM, BAR = BEAT * 4;
+  // Ритм аккордов в долях такта: немного «раскачанный»
+  const RHYTHMS = [[0, 2.5], [0, 1.5, 3], [0.5, 2.5], [0, 3]];
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 
-  function graph() {
+  function init() {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    out = actx.createGain(); out.gain.value = 0;
-    const lp = actx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400; lp.Q.value = .3;
-    // Простое «эхо зала»
-    const dl = actx.createDelay(1), fb = actx.createGain(), wet = actx.createGain();
-    dl.delayTime.value = .38; fb.gain.value = .42; wet.gain.value = .35;
-    out.connect(lp); lp.connect(actx.destination);
-    lp.connect(dl); dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(actx.destination);
+    ctx = actx;
+    master = ctx.createGain(); master.gain.value = 0;
+    // Тёплый «ламповый» звук: срезаем верха, как на старой кассете
+    const tone = ctx.createBiquadFilter(); tone.type = "lowpass"; tone.frequency.value = 2600; tone.Q.value = .5;
+    out = ctx.createGain(); out.gain.value = 1;
+    out.connect(tone); tone.connect(master); master.connect(ctx.destination);
+    // Комната
+    const delay = ctx.createDelay(1), fb = ctx.createGain(), damp = ctx.createBiquadFilter();
+    delay.delayTime.value = BEAT * .75; fb.gain.value = .28; damp.type = "lowpass"; damp.frequency.value = 1400;
+    out.connect(delay); delay.connect(damp); damp.connect(fb); fb.connect(delay); damp.connect(tone);
+    // Треск винила: редкие щелчки и тихий шум в бесконечной петле
+    const len = ctx.sampleRate * 4, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * .012 + (Math.random() < .0004 ? (Math.random() * 2 - 1) * .5 : 0);
+    crackle = ctx.createBufferSource(); crackle.buffer = buf; crackle.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 3000; bp.Q.value = .6;
+    const cg = ctx.createGain(); cg.gain.value = .35;
+    crackle.connect(bp).connect(cg).connect(master); crackle.start();
   }
-  function pad(n, t, dur) {
-    for (const [type, det, g] of [["sine", 0, .5], ["triangle", 7, .18], ["sine", -6, .3]]) {
-      const o = actx.createOscillator(), a = actx.createGain();
-      o.type = type; o.frequency.value = hz(n); o.detune.value = det;
-      a.gain.setValueAtTime(0, t);
-      a.gain.linearRampToValueAtTime(g / 4, t + dur * .35);
-      a.gain.linearRampToValueAtTime(0, t + dur);
-      o.connect(a).connect(out); o.start(t); o.stop(t + dur + .1);
+
+  // Электропиано (как Rhodes): частотная модуляция, яркая атака и мягкий хвост
+  function epiano(n, t, vel) {
+    const f = hz(n);
+    const car = ctx.createOscillator(), mod = ctx.createOscillator(), mg = ctx.createGain(), g = ctx.createGain();
+    car.type = "sine"; mod.type = "sine";
+    car.frequency.value = f; mod.frequency.value = f * 1.0; car.detune.value = (Math.random() - .5) * 8;
+    mg.gain.setValueAtTime(f * 1.6, t); mg.gain.exponentialRampToValueAtTime(f * .08, t + 1.2);
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(.06 * vel, t + .008);
+    g.gain.exponentialRampToValueAtTime(.025 * vel, t + .5);
+    g.gain.exponentialRampToValueAtTime(.0001, t + 3.2);
+    mod.connect(mg).connect(car.frequency);
+    car.connect(g).connect(out);
+    car.start(t); mod.start(t); car.stop(t + 3.3); mod.stop(t + 3.3);
+  }
+
+  function bass(n, t, dur) {
+    const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    o.type = "triangle"; o.frequency.value = hz(n);
+    f.type = "lowpass"; f.frequency.value = 400;
+    g.gain.setValueAtTime(.0001, t);
+    g.gain.exponentialRampToValueAtTime(.16, t + .03);
+    g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(f).connect(g).connect(out); o.start(t); o.stop(t + dur + .05);
+  }
+
+  function schedule() {
+    const t0 = ctx.currentTime + .1;
+    const c = CHORDS[step % CHORDS.length];
+    const rhythm = RHYTHMS[Math.floor(Math.random() * RHYTHMS.length)];
+    rhythm.forEach((beat, i) => {
+      const t = t0 + beat * BEAT;
+      // Аккорд «перебором»: ноты чуть-чуть врозь, как живой пианист
+      c.keys.forEach((n, j) => epiano(n, t + j * .018 + Math.random() * .01, i ? .7 : 1));
+    });
+    bass(c.bass, t0, BEAT * 2.6);
+    bass(c.bass + (Math.random() < .5 ? 7 : 12), t0 + BEAT * 3, BEAT * .9);
+    // Иногда короткая мелодия сверху
+    if (Math.random() < .55) {
+      const pick = () => c.keys[Math.floor(Math.random() * c.keys.length)] + 12;
+      const n = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) epiano(pick(), t0 + (1 + i * .5 + Math.random() * .25) * BEAT, .55);
     }
-  }
-  function bell(n, t) {
-    const o = actx.createOscillator(), a = actx.createGain();
-    o.type = "sine"; o.frequency.value = hz(n);
-    a.gain.setValueAtTime(0, t);
-    a.gain.linearRampToValueAtTime(.11, t + .02);
-    a.gain.exponentialRampToValueAtTime(.0001, t + 3.5);
-    o.connect(a).connect(out); o.start(t); o.stop(t + 3.6);
-  }
-  function tick() {
-    const t = actx.currentTime + .05;
-    CHORDS[step % CHORDS.length].forEach(n => pad(n, t, BAR * 1.5));
-    for (let i = 0; i < 3; i++) if (Math.random() < .55) bell(BELLS[Math.floor(Math.random() * BELLS.length)], t + 1 + Math.random() * (BAR - 2));
     step++;
   }
+
   return {
     start() {
-      if (playing) { actx.state !== "running" && actx.resume?.(); return; }
       if (!settings.music || document.hidden) return;
+      if (on) { try { ctx.resume(); } catch {} return; }
       try {
-        if (!out) graph();
-        actx.resume?.();
-        playing = true;
-        out.gain.cancelScheduledValues(actx.currentTime);
-        out.gain.setTargetAtTime(VOL, actx.currentTime, 1.2);
-        tick(); timer = setInterval(tick, BAR * 1000);
+        if (!ctx) init();
+        ctx.resume();
+        on = true;
+        master.gain.cancelScheduledValues(ctx.currentTime);
+        master.gain.setTargetAtTime(.7, ctx.currentTime, 1.2);
+        schedule();
+        timer = setInterval(schedule, BAR * 1000);
       } catch {}
     },
-    get playing() { return playing; },
     stop(fast) {
-      if (!playing) return;
-      playing = false; clearInterval(timer);
-      try { out.gain.cancelScheduledValues(actx.currentTime); out.gain.setTargetAtTime(0, actx.currentTime, fast ? .08 : .5); } catch {}
+      if (!on) return;
+      on = false;
+      clearInterval(timer);
+      try { master.gain.setTargetAtTime(0, ctx.currentTime, fast ? .08 : .5); } catch {}
     },
+    get playing() { return on; },
   };
 })();
 // iPhone разрешает звук только после первого касания
@@ -751,6 +801,15 @@ async function checkNativeUpdate(manual) {
       b.hidden = false;
       b.innerHTML = `<span style="font-size:26px">🚀</span><div class="txt"><b>Вышло обновление</b><small>Сборка ${latest} уже готова</small></div><button type="button">Скачать</button>`;
       b.querySelector("button").onclick = () => { haptic(); openExternal(RELEASE_PAGE); };
+      // Один раз на каждую новую сборку: запись в 🔔 и всплывающее сообщение
+      if (store.get("ap:updNotified", 0) < latest) {
+        store.set("ap:updNotified", latest);
+        const inbox = store.get("ap:inbox", []);
+        inbox.unshift({ game: null, icon: "🚀", title: "Вышло обновление!", text: `Сборка ${latest} уже готова. Нажми «Скачать» вверху`, t: Date.now(), read: false });
+        store.set("ap:inbox", inbox.slice(0, 100));
+        renderBell(true);
+        toast("🚀", "Вышло обновление!", `Сборка ${latest} уже готова`);
+      }
     } else if (manual) toast("✅", "У тебя последняя версия", `Сборка ${native.build}`);
   } catch {
     if (manual) toast("📡", "Не получилось проверить", "Нужен интернет");
