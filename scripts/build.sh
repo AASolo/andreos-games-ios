@@ -54,7 +54,10 @@ done
 sed -i "s#https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js#\"+new URL('pyodide/pyodide.js',location.href).href+\"#g" \
   "$DIST/games/HackQuest-3.0/index.html"
 
-if grep -l 'cdn.jsdelivr.net' "$DIST"/games/*/index.html; then
+# Шрифты Google Fonts — тоже внутрь, иначе без интернета игры показывают другой шрифт
+node "$ROOT/scripts/localize-fonts.js" "$DIST"/games/*/index.html
+
+if grep -lE 'cdn.jsdelivr.net|fonts.googleapis.com|fonts.gstatic.com' "$DIST"/games/*/index.html; then
   echo "Остались ссылки на CDN, обнови scripts/build.sh" >&2
   exit 1
 fi
